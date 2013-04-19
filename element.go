@@ -29,13 +29,21 @@ func MakeElement(name string, a interface{}) *Element {
 		return e
 	}
 
-	if t, ok := a.(time.Time); ok {
+	v := reflect.ValueOf(a)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			e.Nil = true
+			return e
+		}
+		v = v.Elem()
+	}
+
+	if t, ok := v.Interface().(time.Time); ok {
 		e.Type = "dateTime"
 		e.Text = t.Format("2006-01-02T15:04:05.000000000-07:00")
 		return e
 	}
 
-	v := reflect.ValueOf(a)
 	switch v.Kind() {
 	case reflect.String:
 		e.Type = "string"
