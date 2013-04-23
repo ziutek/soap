@@ -11,7 +11,7 @@ import (
 
 // Element represents one XML/SOAP data element as Go struct. You can use it
 // to build your own SOAP request/reply and use encoding/xml to
-// marshal/unmarshal into/from XML document.
+// marshal/unmarshal it into/from XML document.
 // See http://www.w3.org/2001/XMLSchema
 type Element struct {
 	XMLName xml.Name
@@ -23,8 +23,8 @@ type Element struct {
 	Children []*Element `xml:",any"`
 }
 
-// MakeElement takes some data structure in a and its name and produces Element
-// (or Element tree) for it.
+// MakeElement takes some data structure in a and its name and produces an
+// Element (or some Element tree) for it.
 func MakeElement(name string, a interface{}) *Element {
 	e := new(Element)
 	e.XMLName.Local = name
@@ -136,7 +136,7 @@ func (e *Element) badValue() error {
 	return errors.New("soap: bad value '" + e.Text + "' for type: " + e.Type)
 }
 
-// Value return SOAP element as Go data structure. It can be a simple scalar
+// Value returns SOAP element as Go data structure. It can be a simple scalar
 // value or more complicated structure that contains maps and slices.
 func (e *Element) Value() (interface{}, error) {
 	if e.Nil {
