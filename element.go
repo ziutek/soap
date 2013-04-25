@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+const (
+	timeFormatSOAP = "2006-01-02T15:04:05.000000000-07:00"
+	timeFormatSQL  = "2006-01-02 15:04:05"
+)
+
 // Element represents one XML/SOAP data element as Go struct. You can use it
 // to build your own SOAP request/reply and use encoding/xml to
 // marshal/unmarshal it into/from XML document.
@@ -144,7 +149,7 @@ func (e *Element) badValue(typ string) error {
 		typ = "Go:" + typ
 	}
 	return errors.New(
-		"soap: bad value '" + val + "' for type: " + typ,
+		"soap: bad value '" + val + "' for type " + typ,
 	)
 }
 
@@ -186,6 +191,13 @@ func (e *Element) Value() (interface{}, error) {
 
 	case "float", "double":
 		v, err := strconv.ParseFloat(e.Text, 64)
+		if err != nil {
+			return nil, e.badValue("")
+		}
+		return v, nil
+
+	case "dateTime":
+		v, err := time.Parse(timeFormatSOAP, e.Text)
 		if err != nil {
 			return nil, e.badValue("")
 		}
@@ -532,7 +544,7 @@ func (e *Element) Float64() (float64, error) {
 	if skipNS(e.Type) != "double" {
 		return 0, e.typeError("double")
 	}
-	v, err := strconv.ParseUint(e.Text, 10, 64)
+	v, err := strconv.ParseFloat(e.Text, 64)
 	if err != nil {
 		return 0, e.badValue("")
 	}
@@ -543,9 +555,57 @@ func (e *Element) AsFloat64() (float64, error) {
 	if e.Children != nil {
 		return 0, e.badValue("float64")
 	}
-	v, err := strconv.ParseUint(e.Text, 10, 64)
+	v, err := strconv.ParseFloat(e.Text, 64)
 	if err != nil {
 		return 0, e.badValue("float64")
+	}
+	return v, nil
+}
+
+func (e *Element) Float32() (float32, error) {
+	if skipNS(e.Type) != "float" {
+		return 0, e.typeError("float")
+	}
+	v, err := strconv.ParseFloat(e.Text, 32)
+	if err != nil {
+		return 0, e.badValue("")
+	}
+	return float32(v), nil
+}
+
+func (e *Element) AsFloat32() (float32, error) {
+	if e.Children != nil {
+		return 0, e.badValue("float32")
+	}
+	v, err := strconv.ParseFloat(e.Text, 32)
+	if err != nil {
+		return 0, e.badValue("float32")
+	}
+	return float32(v), nil
+}
+
+func (e *Element) Time() (time.Time, error) {
+	if skipNS(e.Type) != "dateTime" {
+		return time.Time{}, e.typeError("float")
+	}
+	v, err := time.Parse(timeFormatSOAP, e.Text)
+	if err != nil {
+		return time.Time{}, e.badValue("")
+	}
+	return v, nil
+}
+
+func (e *Element) AsTime() (time.Time, error) {
+	if e.Children != nil {
+		return time.Time{}, e.badValue("time.Time")
+	}
+	v, err := time.ParseInLocation(timeFormatSQL, e.Text, time.Local)
+	if err != nil {
+		return time.Time{}, err
+		v, err = time.Parse(timeFormatSOAP, e.Text)
+		if err != nil {
+			return time.Time{}, e.badValue("time.Time")
+		}
 	}
 	return v, nil
 }
