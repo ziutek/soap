@@ -204,42 +204,50 @@ func (e *Element) Value() (interface{}, error) {
 		return v, nil
 
 	case "Struct":
-		v := make(map[string]interface{})
+		m := make(map[string]interface{})
 		for _, c := range e.Children {
-			cv, err := c.Value()
+			v, err := c.Value()
 			if err != nil {
 				return nil, err
 			}
-			v[c.XMLName.Local] = cv
+			m[c.XMLName.Local] = v
 		}
-		return v, nil
+		return m, nil
 
 	case "Array":
-		var v []interface{}
+		var a []interface{}
 		for _, c := range e.Children {
 			if c.XMLName.Local != "item" {
 				return nil, errors.New(
 					"soap: bad element '" + c.XMLName.Local + "'in array",
 				)
 			}
-			cv, err := c.Value()
+			v, err := c.Value()
 			if err != nil {
 				return nil, err
 			}
-			v = append(v, cv)
+			a = append(a, v)
 		}
-		return v, nil
+		return a, nil
 
 	case "Map":
-		v := make(map[interface{}]interface{})
+		m := make(map[interface{}]interface{})
 		for _, c := range e.Children {
 			key, val, err := c.MapItem()
 			if err != nil {
 				return nil, err
 			}
-			v[key] = val
+			k, err := key.Value()
+			if err != nil {
+				return nil, err
+			}
+			v, err := val.Value()
+			if err != nil {
+				return nil, err
+			}
+			m[k] = v
 		}
-		return v, nil
+		return m, nil
 	}
 	return nil, errors.New("soap: unknown type: " + e.Type)
 }
