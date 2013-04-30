@@ -112,12 +112,14 @@ func MakeElement(name string, a interface{}) *Element {
 			if ft.PkgPath != "" {
 				continue // unexported field
 			}
-			// Simulate encoding/xml behavior
 			name := ft.Tag.Get("soap")
 			if i := strings.IndexRune(name, ','); i != -1 {
 				opts := name[i:]
 				name = name[:i]
 				if strings.Contains(opts, ",omitempty") && isEmptyValue(fv) {
+					continue
+				}
+				if strings.Contains(opts, ",in") {
 					continue
 				}
 			}
@@ -391,254 +393,255 @@ func (e *Element) AsBool() (bool, error) {
 	return false, e.badValue("bool")
 }
 
-func (e *Element) Int64() (int64, error) {
-	if skipNS(e.Type) != "long" {
-		return 0, e.typeError("long")
+func soapIntTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "long"
+	case 32:
+		return "int"
+	case 16:
+		return "short"
+	case 8:
+		return "byte"
 	}
-	v, err := strconv.ParseInt(e.Text, 10, 64)
+	panic("wrong number of bits for SOAP int")
+}
+
+func (e *Element) Int(bits int) (int64, error) {
+	t := soapIntTypeName(bits)
+	if skipNS(e.Type) != t {
+		return 0, e.typeError(t)
+	}
+	v, err := strconv.ParseInt(e.Text, 10, bits)
 	if err != nil {
 		return 0, e.badValue("")
 	}
 	return v, nil
 }
 
-func (e *Element) AsInt64() (int64, error) {
-	if e.Children != nil {
-		return 0, e.badValue("int64")
+func (e *Element) Int64() (int64, error) {
+	return e.Int(64)
+}
+
+func (e *Element) Int32() (int32, error) {
+	v, err := e.Int(32)
+	return int32(v), err
+}
+
+func (e *Element) Int16() (int16, error) {
+	v, err := e.Int(16)
+	return int16(v), err
+}
+
+func (e *Element) Int8() (int8, error) {
+	v, err := e.Uint(8)
+	return int8(v), err
+}
+
+func soapUintTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "unsignedLong"
+	case 32:
+		return "unsignedInt"
+	case 16:
+		return "unsignedShort"
+	case 8:
+		return "unsignedByte"
 	}
-	if e.Nil {
-		return 0, nil
+	panic("wrong number of bits for SOAP uint")
+}
+
+func (e *Element) Uint(bits int) (uint64, error) {
+	t := soapUintTypeName(bits)
+	if skipNS(e.Type) != t {
+		return 0, e.typeError(t)
 	}
-	v, err := strconv.ParseInt(e.Text, 10, 64)
+	v, err := strconv.ParseUint(e.Text, 10, bits)
 	if err != nil {
-		return 0, e.badValue("int64")
+		return 0, e.badValue("")
 	}
 	return v, nil
 }
 
 func (e *Element) Uint64() (uint64, error) {
-	if skipNS(e.Type) != "unsignedLong" {
-		return 0, e.typeError("unsignedLong")
+	v, err := e.Uint(64)
+	return v, err
+}
+
+func (e *Element) Uint32() (uint32, error) {
+	v, err := e.Uint(32)
+	return uint32(v), err
+}
+
+func (e *Element) Uint16() (uint16, error) {
+	v, err := e.Uint(16)
+	return uint16(v), err
+}
+
+func (e *Element) Uint8() (uint8, error) {
+	v, err := e.Uint(8)
+	return uint8(v), err
+}
+func goIntTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "int64"
+	case 32:
+		return "int32"
+	case 16:
+		return "int16"
+	case 8:
+		return "int8"
 	}
-	v, err := strconv.ParseUint(e.Text, 10, 64)
+	panic("wrong number of bits for Go int")
+}
+
+func (e *Element) AsInt(bits int) (int64, error) {
+	t := goIntTypeName(bits)
+	if e.Children != nil {
+		return 0, e.badValue(t)
+	}
+	if e.Nil {
+		return 0, nil
+	}
+	v, err := strconv.ParseInt(e.Text, 10, bits)
 	if err != nil {
-		return 0, e.badValue("")
+		return 0, e.badValue(t)
+	}
+	return v, nil
+}
+
+func (e *Element) AsInt64() (int64, error) {
+	return e.AsInt(64)
+}
+
+func (e *Element) AsInt32() (int32, error) {
+	v, err := e.AsInt(32)
+	return int32(v), err
+}
+
+func (e *Element) AsInt16() (int16, error) {
+	v, err := e.AsInt(16)
+	return int16(v), err
+}
+
+func (e *Element) AsInt8() (int8, error) {
+	v, err := e.AsInt(8)
+	return int8(v), err
+}
+
+func goUintTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "uint64"
+	case 32:
+		return "uint32"
+	case 16:
+		return "uint16"
+	case 8:
+		return "uint8"
+	}
+	panic("wrong number of bits for Go uint")
+}
+
+func (e *Element) AsUint(bits int) (uint64, error) {
+	t := goIntTypeName(bits)
+	if e.Children != nil {
+		return 0, e.badValue(t)
+	}
+	if e.Nil {
+		return 0, nil
+	}
+	v, err := strconv.ParseUint(e.Text, 10, bits)
+	if err != nil {
+		return 0, e.badValue(t)
 	}
 	return v, nil
 }
 
 func (e *Element) AsUint64() (uint64, error) {
-	if e.Children != nil {
-		return 0, e.badValue("uint64")
+	return e.AsUint(64)
+}
+
+func (e *Element) AsUint32() (uint32, error) {
+	v, err := e.AsUint(32)
+	return uint32(v), err
+}
+
+func (e *Element) AsUint16() (uint16, error) {
+	v, err := e.AsUint(16)
+	return uint16(v), err
+}
+
+func (e *Element) AsUint8() (uint8, error) {
+	v, err := e.AsUint(8)
+	return uint8(v), err
+}
+
+func soapFloatTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "double"
+	case 32:
+		return "float"
 	}
-	if e.Nil {
-		return 0, nil
+	panic("wrong number of bits for SOAP float")
+}
+
+func (e *Element) Float(bits int) (float64, error) {
+	t := soapFloatTypeName(bits)
+	if skipNS(e.Type) != t {
+		return 0, e.typeError(t)
 	}
-	v, err := strconv.ParseUint(e.Text, 10, 64)
+	v, err := strconv.ParseFloat(e.Text, bits)
 	if err != nil {
-		return 0, e.badValue("uint64")
+		return 0, e.badValue("")
 	}
 	return v, nil
 }
 
-func (e *Element) Int32() (int32, error) {
-	if skipNS(e.Type) != "int" {
-		return 0, e.typeError("int")
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 32)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return int32(v), nil
-}
-
-func (e *Element) AsInt32() (int32, error) {
-	if e.Children != nil {
-		return 0, e.badValue("int32")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 32)
-	if err != nil {
-		return 0, e.badValue("int32")
-	}
-	return int32(v), nil
-}
-
-func (e *Element) Uint32() (uint32, error) {
-	if skipNS(e.Type) != "unsignedInt" {
-		return 0, e.typeError("unsignedInt")
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 32)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return uint32(v), nil
-}
-
-func (e *Element) AsUint32() (uint32, error) {
-	if e.Children != nil {
-		return 0, e.badValue("uint32")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 32)
-	if err != nil {
-		return 0, e.badValue("uint32")
-	}
-	return uint32(v), nil
-}
-
-func (e *Element) Int16() (int16, error) {
-	if skipNS(e.Type) != "short" {
-		return 0, e.typeError("short")
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 16)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return int16(v), nil
-}
-
-func (e *Element) AsInt16() (int16, error) {
-	if e.Children != nil {
-		return 0, e.badValue("int16")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 16)
-	if err != nil {
-		return 0, e.badValue("int16")
-	}
-	return int16(v), nil
-}
-
-func (e *Element) Uint16() (uint16, error) {
-	if skipNS(e.Type) != "unsignedShort" {
-		return 0, e.typeError("unsignedShort")
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 16)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return uint16(v), nil
-}
-
-func (e *Element) AsUint16() (uint16, error) {
-	if e.Children != nil {
-		return 0, e.badValue("uint16")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 16)
-	if err != nil {
-		return 0, e.badValue("uint16")
-	}
-	return uint16(v), nil
-}
-
-func (e *Element) Int8() (int8, error) {
-	if skipNS(e.Type) != "byte" {
-		return 0, e.typeError("byte")
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 8)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return int8(v), nil
-}
-
-func (e *Element) AsInt8() (int8, error) {
-	if e.Children != nil {
-		return 0, e.badValue("int8")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseInt(e.Text, 10, 8)
-	if err != nil {
-		return 0, e.badValue("int8")
-	}
-	return int8(v), nil
-}
-
-func (e *Element) Uint8() (uint8, error) {
-	if skipNS(e.Type) != "unsignedByte" {
-		return 0, e.typeError("unsignedByte")
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 8)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return uint8(v), nil
-}
-
-func (e *Element) AsUint8() (uint8, error) {
-	if e.Children != nil {
-		return 0, e.badValue("uint8")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseUint(e.Text, 10, 8)
-	if err != nil {
-		return 0, e.badValue("uint8")
-	}
-	return uint8(v), nil
-}
-
 func (e *Element) Float64() (float64, error) {
-	if skipNS(e.Type) != "double" {
-		return 0, e.typeError("double")
+	return e.Float(64)
+}
+
+func (e *Element) Float32() (float32, error) {
+	v, err := e.Float(32)
+	return float32(v), err
+}
+
+func goFloatTypeName(bits int) string {
+	switch bits {
+	case 64:
+		return "float64"
+	case 32:
+		return "float32"
 	}
-	v, err := strconv.ParseFloat(e.Text, 64)
+	panic("wrong number of bits for Go float")
+}
+
+func (e *Element) AsFloat(bits int) (float64, error) {
+	t := goFloatTypeName(bits)
+	if e.Children != nil {
+		return 0, e.badValue(t)
+	}
+	if e.Nil {
+		return 0, nil
+	}
+	v, err := strconv.ParseFloat(e.Text, bits)
 	if err != nil {
-		return 0, e.badValue("")
+		return 0, e.badValue(t)
 	}
 	return v, nil
 }
 
 func (e *Element) AsFloat64() (float64, error) {
-	if e.Children != nil {
-		return 0, e.badValue("float64")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseFloat(e.Text, 64)
-	if err != nil {
-		return 0, e.badValue("float64")
-	}
-	return v, nil
-}
-
-func (e *Element) Float32() (float32, error) {
-	if skipNS(e.Type) != "float" {
-		return 0, e.typeError("float")
-	}
-	v, err := strconv.ParseFloat(e.Text, 32)
-	if err != nil {
-		return 0, e.badValue("")
-	}
-	return float32(v), nil
+	return e.AsFloat(64)
 }
 
 func (e *Element) AsFloat32() (float32, error) {
-	if e.Children != nil {
-		return 0, e.badValue("float32")
-	}
-	if e.Nil {
-		return 0, nil
-	}
-	v, err := strconv.ParseFloat(e.Text, 32)
-	if err != nil {
-		return 0, e.badValue("float32")
-	}
-	return float32(v), nil
+	v, err := e.AsFloat(32)
+	return float32(v), err
 }
 
 func (e *Element) Time() (time.Time, error) {
@@ -668,6 +671,125 @@ func (e *Element) AsTime() (time.Time, error) {
 		}
 	}
 	return v, nil
+}
+
+var timeType = reflect.TypeOf(time.Time{})
+
+// LoadStruct load structure pointed by sp. If strict==true field types should
+// match.
+func (e *Element) LoadStruct(sp interface{}, strict bool) error {
+	p := reflect.ValueOf(sp)
+	if p.Kind() != reflect.Ptr || p.Type().Elem().Kind() != reflect.Struct {
+		return errors.New("soap: argument should be pointer to the struct")
+	}
+	s := p.Elem()
+	t := s.Type()
+	n := s.NumField()
+	for i := 0; i < n; i++ {
+		ft := t.Field(i)
+		fv := s.Field(i)
+		if ft.PkgPath != "" {
+			continue // unexported field
+		}
+		name := ft.Tag.Get("soap")
+		if i := strings.IndexRune(name, ','); i != -1 {
+			name = name[:i]
+		}
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = ft.Name
+		}
+		e, err := e.Get(name)
+		if err != nil {
+			return err
+		}
+		if strict {
+			// TODO: time.Time
+			switch fv.Kind() {
+			case reflect.String:
+				v, err := e.Str()
+				if err != nil {
+					return err
+				}
+				fv.SetString(v)
+
+			case reflect.Bool:
+				v, err := e.Bool()
+				if err != nil {
+					return err
+				}
+				fv.SetBool(v)
+
+			case reflect.Int64:
+				v, err := e.Int(64)
+				if err != nil {
+					return err
+				}
+				fv.SetInt(v)
+			case reflect.Int32:
+				v, err := e.Int(32)
+				if err != nil {
+					return err
+				}
+				fv.SetInt(v)
+			case reflect.Int16:
+				v, err := e.Int(16)
+				if err != nil {
+					return err
+				}
+				fv.SetInt(v)
+			case reflect.Int8:
+				v, err := e.Int(8)
+				if err != nil {
+					return err
+				}
+				fv.SetInt(v)
+
+			case reflect.Uint64:
+				v, err := e.Uint(64)
+				if err != nil {
+					return err
+				}
+				fv.SetUint(v)
+			case reflect.Uint32:
+				v, err := e.Uint(32)
+				if err != nil {
+					return err
+				}
+				fv.SetUint(v)
+			case reflect.Uint16:
+				v, err := e.Uint(16)
+				if err != nil {
+					return err
+				}
+				fv.SetUint(v)
+			case reflect.Uint8:
+				v, err := e.Uint(8)
+				if err != nil {
+					return err
+				}
+				fv.SetUint(v)
+
+			case reflect.Float64:
+				v, err := e.Float(64)
+				if err != nil {
+					return err
+				}
+				fv.SetFloat(v)
+			case reflect.Float32:
+				v, err := e.Float(32)
+				if err != nil {
+					return err
+				}
+				fv.SetFloat(v)
+			}
+		} else {
+			// TODO:
+		}
+	}
+	return nil
 }
 
 func isEmptyValue(v reflect.Value) bool {
