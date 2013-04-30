@@ -30,7 +30,8 @@ type Element struct {
 }
 
 // MakeElement takes some data structure in a and its name and produces an
-// Element (or some Element tree) for it.
+// Element (or some Element tree) for it. For struct fields you can use tags
+// in the form `soap:"NAME,OPTION"`.
 func MakeElement(name string, a interface{}) *Element {
 	e := new(Element)
 	e.XMLName.Local = name
@@ -107,16 +108,28 @@ func MakeElement(name string, a interface{}) *Element {
 		n := t.NumField()
 		for i := 0; i < n; i++ {
 			ft := t.Field(i)
+			fv := v.Field(i)
 			if ft.PkgPath != "" {
 				continue // unexported field
 			}
-			name := ft.Tag.Get("xml")
+			// Simulate encoding/xml behavior
+			name := ft.Tag.Get("soap")
+			if i := strings.IndexRune(name, ','); i != -1 {
+				opts := name[i:]
+				name = name[:i]
+				if strings.Contains(opts, ",omitempty") && isEmptyValue(fv) {
+					continue
+				}
+			}
+			if name == "-" {
+				continue
+			}
 			if name == "" {
 				name = ft.Name
 			}
 			e.Children = append(
 				e.Children,
-				MakeElement(name, v.Field(i).Interface()),
+				MakeElement(name, fv.Interface()),
 			)
 		}
 
@@ -363,6 +376,12 @@ func (e *Element) Bool() (bool, error) {
 }
 
 func (e *Element) AsBool() (bool, error) {
+	if e.Children != nil {
+		return false, e.badValue("bool")
+	}
+	if e.Nil {
+		return false, nil
+	}
 	switch e.Text {
 	case "true", "1":
 		return true, nil
@@ -387,6 +406,9 @@ func (e *Element) AsInt64() (int64, error) {
 	if e.Children != nil {
 		return 0, e.badValue("int64")
 	}
+	if e.Nil {
+		return 0, nil
+	}
 	v, err := strconv.ParseInt(e.Text, 10, 64)
 	if err != nil {
 		return 0, e.badValue("int64")
@@ -408,6 +430,9 @@ func (e *Element) Uint64() (uint64, error) {
 func (e *Element) AsUint64() (uint64, error) {
 	if e.Children != nil {
 		return 0, e.badValue("uint64")
+	}
+	if e.Nil {
+		return 0, nil
 	}
 	v, err := strconv.ParseUint(e.Text, 10, 64)
 	if err != nil {
@@ -431,6 +456,9 @@ func (e *Element) AsInt32() (int32, error) {
 	if e.Children != nil {
 		return 0, e.badValue("int32")
 	}
+	if e.Nil {
+		return 0, nil
+	}
 	v, err := strconv.ParseInt(e.Text, 10, 32)
 	if err != nil {
 		return 0, e.badValue("int32")
@@ -452,6 +480,9 @@ func (e *Element) Uint32() (uint32, error) {
 func (e *Element) AsUint32() (uint32, error) {
 	if e.Children != nil {
 		return 0, e.badValue("uint32")
+	}
+	if e.Nil {
+		return 0, nil
 	}
 	v, err := strconv.ParseUint(e.Text, 10, 32)
 	if err != nil {
@@ -475,6 +506,9 @@ func (e *Element) AsInt16() (int16, error) {
 	if e.Children != nil {
 		return 0, e.badValue("int16")
 	}
+	if e.Nil {
+		return 0, nil
+	}
 	v, err := strconv.ParseInt(e.Text, 10, 16)
 	if err != nil {
 		return 0, e.badValue("int16")
@@ -496,6 +530,9 @@ func (e *Element) Uint16() (uint16, error) {
 func (e *Element) AsUint16() (uint16, error) {
 	if e.Children != nil {
 		return 0, e.badValue("uint16")
+	}
+	if e.Nil {
+		return 0, nil
 	}
 	v, err := strconv.ParseUint(e.Text, 10, 16)
 	if err != nil {
@@ -519,6 +556,9 @@ func (e *Element) AsInt8() (int8, error) {
 	if e.Children != nil {
 		return 0, e.badValue("int8")
 	}
+	if e.Nil {
+		return 0, nil
+	}
 	v, err := strconv.ParseInt(e.Text, 10, 8)
 	if err != nil {
 		return 0, e.badValue("int8")
@@ -540,6 +580,9 @@ func (e *Element) Uint8() (uint8, error) {
 func (e *Element) AsUint8() (uint8, error) {
 	if e.Children != nil {
 		return 0, e.badValue("uint8")
+	}
+	if e.Nil {
+		return 0, nil
 	}
 	v, err := strconv.ParseUint(e.Text, 10, 8)
 	if err != nil {
@@ -563,6 +606,9 @@ func (e *Element) AsFloat64() (float64, error) {
 	if e.Children != nil {
 		return 0, e.badValue("float64")
 	}
+	if e.Nil {
+		return 0, nil
+	}
 	v, err := strconv.ParseFloat(e.Text, 64)
 	if err != nil {
 		return 0, e.badValue("float64")
@@ -584,6 +630,9 @@ func (e *Element) Float32() (float32, error) {
 func (e *Element) AsFloat32() (float32, error) {
 	if e.Children != nil {
 		return 0, e.badValue("float32")
+	}
+	if e.Nil {
+		return 0, nil
 	}
 	v, err := strconv.ParseFloat(e.Text, 32)
 	if err != nil {
@@ -607,6 +656,9 @@ func (e *Element) AsTime() (time.Time, error) {
 	if e.Children != nil {
 		return time.Time{}, e.badValue("time.Time")
 	}
+	if e.Nil {
+		return time.Time{}, nil
+	}
 	v, err := time.ParseInLocation(timeFormatSQL, e.Text, time.Local)
 	if err != nil {
 		return time.Time{}, err
@@ -616,4 +668,22 @@ func (e *Element) AsTime() (time.Time, error) {
 		}
 	}
 	return v, nil
+}
+
+func isEmptyValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Interface, reflect.Ptr:
+		return v.IsNil()
+	}
+	return false
 }
