@@ -31,7 +31,7 @@ type Element struct {
 
 // MakeElement takes some data structure in a and its name and produces an
 // Element (or some Element tree) for it. For struct fields you can use tags
-// in the form `soap:"NAME,OPTION"`.
+// in the form `soap:"NAME,OPTION". Known options: omitempty, in`.
 func MakeElement(name string, a interface{}) *Element {
 	e := new(Element)
 	e.XMLName.Local = name
@@ -330,7 +330,9 @@ func (e *Element) Get(key interface{}) (*Element, error) {
 			}
 			return v, nil
 		}
+		return nil, nil
 	}
+	panic(fmt.Sprintf("%#v\n", e))
 	return nil, errors.New("soap: element isn't Struct nor Map")
 }
 
@@ -384,13 +386,11 @@ func (e *Element) AsBool() (bool, error) {
 	if e.Nil {
 		return false, nil
 	}
-	switch e.Text {
-	case "true", "1":
-		return true, nil
-	case "false", "0":
-		return false, nil
+	b, err := strconv.ParseBool(e.Text)
+	if err != nil {
+		return false, e.badValue("bool")
 	}
-	return false, e.badValue("bool")
+	return b, nil
 }
 
 func soapIntTypeName(bits int) string {
@@ -680,7 +680,7 @@ var timeType = reflect.TypeOf(time.Time{})
 func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 	p := reflect.ValueOf(sp)
 	if p.Kind() != reflect.Ptr || p.Type().Elem().Kind() != reflect.Struct {
-		return errors.New("soap: argument should be pointer to the struct")
+		return errors.New("soap: argument should be a pointer to the struct")
 	}
 	s := p.Elem()
 	t := s.Type()
@@ -701,92 +701,136 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 		if name == "" {
 			name = ft.Name
 		}
-		e, err := e.Get(name)
+		item, err := e.Get(name)
 		if err != nil {
 			return err
 		}
-		if strict {
-			// TODO: time.Time
-			switch fv.Kind() {
-			case reflect.String:
-				v, err := e.Str()
-				if err != nil {
-					return err
-				}
-				fv.SetString(v)
-
-			case reflect.Bool:
-				v, err := e.Bool()
-				if err != nil {
-					return err
-				}
-				fv.SetBool(v)
-
-			case reflect.Int64:
-				v, err := e.Int(64)
-				if err != nil {
-					return err
-				}
-				fv.SetInt(v)
-			case reflect.Int32:
-				v, err := e.Int(32)
-				if err != nil {
-					return err
-				}
-				fv.SetInt(v)
-			case reflect.Int16:
-				v, err := e.Int(16)
-				if err != nil {
-					return err
-				}
-				fv.SetInt(v)
-			case reflect.Int8:
-				v, err := e.Int(8)
-				if err != nil {
-					return err
-				}
-				fv.SetInt(v)
-
-			case reflect.Uint64:
-				v, err := e.Uint(64)
-				if err != nil {
-					return err
-				}
-				fv.SetUint(v)
-			case reflect.Uint32:
-				v, err := e.Uint(32)
-				if err != nil {
-					return err
-				}
-				fv.SetUint(v)
-			case reflect.Uint16:
-				v, err := e.Uint(16)
-				if err != nil {
-					return err
-				}
-				fv.SetUint(v)
-			case reflect.Uint8:
-				v, err := e.Uint(8)
-				if err != nil {
-					return err
-				}
-				fv.SetUint(v)
-
-			case reflect.Float64:
-				v, err := e.Float(64)
-				if err != nil {
-					return err
-				}
-				fv.SetFloat(v)
-			case reflect.Float32:
-				v, err := e.Float(32)
-				if err != nil {
-					return err
-				}
-				fv.SetFloat(v)
+		if item == nil {
+			if strict {
+				return fmt.Errorf("soap: there is no field of name '%s'", name)
 			}
-		} else {
-			// TODO:
+			// Clear this field
+			fv.Set(reflect.Zero(ft.Type))
+			continue
+		}
+		var (
+			i int64
+			u uint64
+			f float64
+		)
+		switch fv.Kind() {
+		case reflect.String:
+			var s string
+			if strict {
+				s, err = item.Str()
+			} else {
+				s = item.AsStr()
+
+			}
+			fv.SetString(s)
+
+		case reflect.Bool:
+			var b bool
+			if strict {
+				b, err = item.Bool()
+			} else {
+				b, err = item.AsBool()
+			}
+			fv.SetBool(b)
+
+		case reflect.Int64:
+			if strict {
+				i, err = item.Int(64)
+			} else {
+				i, err = item.AsInt(64)
+			}
+			fv.SetInt(i)
+		case reflect.Int32:
+			if strict {
+				i, err = item.Int(32)
+			} else {
+				i, err = item.AsInt(32)
+			}
+			fv.SetInt(i)
+		case reflect.Int16:
+			if strict {
+				i, err = item.Int(16)
+			} else {
+				i, err = item.AsInt(16)
+			}
+			fv.SetInt(i)
+		case reflect.Int8:
+			if strict {
+				i, err = item.Int(8)
+			} else {
+				i, err = item.AsInt(8)
+			}
+			fv.SetInt(i)
+
+		case reflect.Uint64:
+			if strict {
+				u, err = item.Uint(64)
+			} else {
+				u, err = item.AsUint(64)
+
+			}
+			fv.SetUint(u)
+		case reflect.Uint32:
+			if strict {
+				u, err = item.Uint(32)
+			} else {
+				u, err = item.AsUint(32)
+
+			}
+			fv.SetUint(u)
+		case reflect.Uint16:
+			if strict {
+				u, err = item.Uint(16)
+			} else {
+				u, err = item.AsUint(16)
+
+			}
+			fv.SetUint(u)
+		case reflect.Uint8:
+			if strict {
+				u, err = item.Uint(8)
+			} else {
+				u, err = item.AsUint(8)
+
+			}
+			fv.SetUint(u)
+
+		case reflect.Float64:
+			if strict {
+				f, err = item.Float(64)
+			} else {
+				f, err = item.AsFloat(64)
+			}
+			fv.SetFloat(f)
+		case reflect.Float32:
+			if strict {
+				f, err = item.Float(64)
+			} else {
+				f, err = item.AsFloat(64)
+			}
+			fv.SetFloat(f)
+
+		default:
+			if ft.Type == timeType {
+				var t time.Time
+				if strict {
+					t, err = item.Time()
+				} else {
+					t, err = item.AsTime()
+
+				}
+				fv.Set(reflect.ValueOf(t))
+			} else {
+				err = fmt.Errorf("soap: unsupported field type %s", ft.Type)
+			}
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return nil
