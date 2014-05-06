@@ -15,7 +15,7 @@ const (
 	timeFormatSQL  = "2006-01-02 15:04:05"
 )
 
-// Element represents one XML/SOAP data element as Go struct. You can use it
+// An Element represents one XML/SOAP data element as Go struct. You can use it
 // to build your own SOAP request/reply and use encoding/xml to
 // marshal/unmarshal it into/from XML document.
 // See http://www.w3.org/2001/XMLSchema
@@ -31,7 +31,7 @@ type Element struct {
 
 // MakeElement takes some data structure in a and its name and produces an
 // Element (or some Element tree) for it. For struct fields you can use tags
-// in the form `soap:"NAME,OPTION". Known options: omitempty, in`.
+// in the form `soap:"NAME,OPTION"`. Known options: omitempty, in.
 func MakeElement(name string, a interface{}) *Element {
 	e := new(Element)
 	e.XMLName.Local = name
@@ -52,7 +52,7 @@ func MakeElement(name string, a interface{}) *Element {
 
 	if t, ok := v.Interface().(time.Time); ok {
 		e.Type = "xsd:dateTime"
-		e.Text = t.Format("2006-01-02T15:04:05.000000000-07:00")
+		e.Text = t.Format(timeFormatSOAP)
 		return e
 	}
 
@@ -72,12 +72,15 @@ func MakeElement(name string, a interface{}) *Element {
 	case reflect.Int, reflect.Int64:
 		e.Type = "xsd:long"
 		e.Text = strconv.FormatInt(v.Int(), 10)
+
 	case reflect.Int32:
 		e.Type = "xsd:int"
 		e.Text = strconv.FormatInt(v.Int(), 10)
+
 	case reflect.Int16:
 		e.Type = "xsd:short"
 		e.Text = strconv.FormatInt(v.Int(), 10)
+
 	case reflect.Int8:
 		e.Type = "xsd:byte"
 		e.Text = strconv.FormatInt(v.Int(), 10)
@@ -85,12 +88,15 @@ func MakeElement(name string, a interface{}) *Element {
 	case reflect.Uint, reflect.Uint64:
 		e.Type = "xsd:unsignedLong"
 		e.Text = strconv.FormatUint(v.Uint(), 10)
+
 	case reflect.Uint32:
 		e.Type = "xsd:unsignedInt"
 		e.Text = strconv.FormatUint(v.Uint(), 10)
+
 	case reflect.Uint16:
 		e.Type = "xsd:unsignedShort"
 		e.Text = strconv.FormatUint(v.Uint(), 10)
+
 	case reflect.Uint8:
 		e.Type = "xsd:unsignedByte"
 		e.Text = strconv.FormatUint(v.Uint(), 10)
@@ -98,6 +104,7 @@ func MakeElement(name string, a interface{}) *Element {
 	case reflect.Float32:
 		e.Type = "xsd:float"
 		e.Text = strconv.FormatFloat(v.Float(), 'e', 7, 32)
+
 	case reflect.Float64:
 		e.Type = "xsd:double"
 		e.Text = strconv.FormatFloat(v.Float(), 'e', 16, 64)
@@ -136,9 +143,23 @@ func MakeElement(name string, a interface{}) *Element {
 		}
 
 	case reflect.Slice, reflect.Array:
-		panic("soap: slices and arrays not implemented")
+		panic("soap: slices and arrays not implemented yet")
+
 	case reflect.Map:
-		panic("soap: maps not implemented")
+		e.Type = "ns2:Map"
+		if v.IsNil() {
+			e.Nil = true
+		}
+		for _, k := range v.MapKeys() {
+			item := new(Element)
+			item.XMLName.Local = "item"
+			item.Children = []*Element{
+				MakeElement("key", k.Interface()),
+				MakeElement("value", v.MapIndex(k).Interface()),
+			}
+			e.Children = append(e.Children, item)
+		}
+
 	default:
 		panic("soap: unknown kind of type: " + v.Kind().String())
 	}
@@ -281,8 +302,10 @@ func (e *Element) MapItem() (key, val *Element, err error) {
 	switch "key" {
 	case e.Children[0].XMLName.Local:
 		key = e.Children[0]
+
 	case e.Children[1].XMLName.Local:
 		key = e.Children[1]
+
 	default:
 		err = errors.New("soap: map item without a key")
 		return
@@ -291,8 +314,10 @@ func (e *Element) MapItem() (key, val *Element, err error) {
 	switch "value" {
 	case e.Children[1].XMLName.Local:
 		val = e.Children[1]
+
 	case e.Children[0].XMLName.Local:
 		val = e.Children[0]
+
 	default:
 		err = errors.New("soap: map item without a value")
 	}
@@ -315,6 +340,7 @@ func (e *Element) Get(key interface{}) (*Element, error) {
 			}
 			return c, nil
 		}
+
 	case "Map":
 		for _, c := range e.Children {
 			k, v, err := c.MapItem()
@@ -745,6 +771,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 				i, err = item.AsInt(64)
 			}
 			fv.SetInt(i)
+
 		case reflect.Int32:
 			if strict {
 				i, err = item.Int(32)
@@ -752,6 +779,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 				i, err = item.AsInt(32)
 			}
 			fv.SetInt(i)
+
 		case reflect.Int16:
 			if strict {
 				i, err = item.Int(16)
@@ -759,6 +787,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 				i, err = item.AsInt(16)
 			}
 			fv.SetInt(i)
+
 		case reflect.Int8:
 			if strict {
 				i, err = item.Int(8)
@@ -775,6 +804,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 
 			}
 			fv.SetUint(u)
+
 		case reflect.Uint32:
 			if strict {
 				u, err = item.Uint(32)
@@ -783,6 +813,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 
 			}
 			fv.SetUint(u)
+
 		case reflect.Uint16:
 			if strict {
 				u, err = item.Uint(16)
@@ -791,6 +822,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 
 			}
 			fv.SetUint(u)
+
 		case reflect.Uint8:
 			if strict {
 				u, err = item.Uint(8)
@@ -807,6 +839,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 				f, err = item.AsFloat(64)
 			}
 			fv.SetFloat(f)
+
 		case reflect.Float32:
 			if strict {
 				f, err = item.Float(64)
@@ -840,14 +873,19 @@ func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
 		return v.Len() == 0
+
 	case reflect.Bool:
 		return !v.Bool()
+
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return v.Int() == 0
+
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		return v.Uint() == 0
+
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
+
 	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
 	}
