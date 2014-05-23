@@ -655,19 +655,24 @@ func (e *Element) Time() (time.Time, error) {
 	return v, nil
 }
 
-func (e *Element) AsTime() (time.Time, error) {
+func (e *Element) AsTime(loc *time.Location) (time.Time, error) {
 	if e.Children != nil {
 		return time.Time{}, e.badValue("time.Time")
 	}
 	if e.Nil {
 		return time.Time{}, nil
 	}
-	v, err := time.ParseInLocation(timeFormatSQL, e.Text, time.Local)
+	v, err := time.Parse(timeFormatSOAP, e.Text)
 	if err != nil {
-		return time.Time{}, err
-		v, err = time.Parse(timeFormatSOAP, e.Text)
+		v, err = time.ParseInLocation(timeFormatSQL, e.Text, loc)
 		if err != nil {
-			return time.Time{}, e.badValue("time.Time")
+			v, err = time.ParseInLocation(timeFormatSQL[:16], e.Text, loc)
+			if err != nil {
+				v, err = time.ParseInLocation(timeFormatSQL[:10], e.Text, loc)
+				if err != nil {
+					return time.Time{}, e.badValue("time.Time")
+				}
+			}
 		}
 	}
 	return v, nil
@@ -821,7 +826,7 @@ func (e *Element) LoadStruct(sp interface{}, strict bool) error {
 				if strict {
 					t, err = item.Time()
 				} else {
-					t, err = item.AsTime()
+					t, err = item.AsTime(time.Local)
 
 				}
 				fv.Set(reflect.ValueOf(t))
