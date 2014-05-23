@@ -1,4 +1,4 @@
-See http://gopkgdoc.appspot.com/pkg/github.com/ziutek/hiperus for example of
+See http://godoc.org/github.com/ziutek/hiperus for example of
 usage.
 
-[gopkgdoc](http://gopkgdoc.appspot.com/pkg/github.com/ziutek/soap)
+[gopkgdoc](http://godoc.org/github.com/ziutek/soap)

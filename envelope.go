@@ -13,7 +13,7 @@ type Fault struct {
 
 func (f *Fault) Error() string {
 	return fmt.Sprintf(
-		"hiperus: SOAP fault: %s: %s: %s: %s",
+		"soap: fault %s: %s: %s: %s",
 		f.Code, f.String, f.Actor, f.Detail,
 	)
 }
